@@ -172,4 +172,4 @@ bank-data-pipeline/
 
 ## 👤 Autor
 
-**Leander Carvalho** — [LinkedIn](https://www.linkedin.com/in/leander-carvalho)
+**Leander Carvalho** — [LinkedIn](https://www.linkedin.com/in/leandercarvalho/)
