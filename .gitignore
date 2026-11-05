@@ -1,0 +1,12 @@
+# Segredos: NUNCA vão para o GitHub
+.env
+
+# Ambiente virtual do Python (cada pessoa cria o seu)
+.venv/
+
+# Dados gerados (qualquer um recria rodando os scripts)
+data/
+
+# Arquivos temporários do Python
+__pycache__/
+*.pyc

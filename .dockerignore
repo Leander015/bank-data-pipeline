@@ -1,0 +1,6 @@
+# O que NÃO vai para dentro da imagem da API (deixa o build rápido e seguro)
+.venv/
+data/
+.env
+__pycache__/
+*.pyc

@@ -1,0 +1,92 @@
+# =====================================================================
+# Infraestrutura completa do projeto:
+#   oracle -> dados estruturados (clientes, contas, transações)
+#   mongo  -> eventos do app (esquema flexível)
+#   api    -> FastAPI que junta tudo (http://localhost:8000/docs)
+#   spark  -> job antifraude, roda sob demanda
+#
+# Subir tudo:     docker compose up -d --build
+# Status:         docker compose ps        (esperar "healthy")
+# Rodar o Spark:  docker compose run --rm spark
+# Parar:          docker compose stop
+# =====================================================================
+
+services:
+  oracle:
+    # Oracle Database 23ai Free, versão "slim" (menor, ideal para desenvolvimento)
+    image: gvenzl/oracle-free:23-slim
+    container_name: oracle-banco
+    ports:
+      - "1521:1521"              # porta do seu PC : porta do container
+    environment:
+      # Os valores vêm do arquivo .env (que NÃO vai para o GitHub)
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD}          # senha do administrador (SYSTEM)
+      APP_USER: ${ORACLE_USER}                     # usuário do nosso projeto
+      APP_USER_PASSWORD: ${ORACLE_USER_PASSWORD}
+    volumes:
+      # Guarda os dados fora do container: se ele for recriado, nada se perde
+      - oracle-dados:/opt/oracle/oradata
+    healthcheck:
+      # Comando que vem na imagem e diz se o banco já está pronto para uso
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  mongo:
+    # MongoDB 7: banco de documentos, ideal para dados com formato variável
+    image: mongo:7
+    container_name: mongo-banco
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    volumes:
+      - mongo-dados:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  spark:
+    # Spark 4.0 com Python e Java 17 já instalados: nada para instalar no Windows
+    image: spark:4.0.4-python3
+    container_name: spark-banco
+    profiles: ["jobs"]      # não liga no "up -d": roda sob demanda, como um job
+    user: root
+    working_dir: /app
+    volumes:
+      - ./:/app             # a pasta do projeto aparece dentro do container em /app
+    command: ["/opt/spark/bin/spark-submit", "--master", "local[*]",
+              "--driver-memory", "2g", "scripts/antifraude_spark.py"]
+
+  api:
+    # Imagem construída a partir do nosso próprio Dockerfile
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: api-banco
+    ports:
+      - "8000:8000"
+    env_file: .env          # usuários e senhas
+    environment:
+      # Dentro da rede do Docker, cada serviço é encontrado pelo NOME
+      # ("oracle", "mongo"), e não por "localhost"
+      ORACLE_DSN: oracle:1521/FREEPDB1
+      MONGO_HOST: mongo:27017
+    volumes:
+      - ./data/gold:/app/data/gold:ro   # alertas do Spark (ro = só leitura)
+    depends_on:
+      # Só liga a API depois que os dois bancos estiverem prontos
+      oracle:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+
+volumes:
+  oracle-dados:
+  mongo-dados:
